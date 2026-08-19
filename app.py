@@ -1,7 +1,7 @@
 """
 S.E.C.O.P.T.E.R. Web - Sistema Estratégico de Captura de Oportunidades Públicas
-Versión: 1.0 (Migración Streamlit)
-Desarrollado para: Alejandro Ariza - Asesor en Contratación Estatal
+Versión: 10.1 (Fidelidad Estructural y Corrección Motor SECOP I)
+Desarrollado para: Alejandro Ariza - Asesor en Contratación
 """
 import streamlit as st
 from datetime import datetime, timedelta
@@ -59,7 +59,8 @@ with col1:
     plataforma = st.selectbox("Plataforma de Búsqueda", ["Ambos (SECOP I y II)", "SECOP II", "SECOP I"])
     tipo_contrato = st.selectbox("Tipo de Contrato", list(TIPO_CONTRATO_API_LIKE.keys()))
     tipo_otro = st.text_input("Escriba el tipo (Si eligió 'Otro')") if tipo_contrato == "Otro" else ""
-    modalidades = st.multiselect("Modalidad(es)", MODALIDADES, default=["Mínima cuantía"])
+    # CORRECCIÓN 1: Se remueve el default de Mínima Cuantía para que busque todas las modalidades de base
+    modalidades = st.multiselect("Modalidad(es)", MODALIDADES, default=[])
     modalidad_otra = st.text_input("Otra modalidad (Opcional)")
 
 with col2:
@@ -78,7 +79,7 @@ if usar_presupuesto:
     p_max = c_max.number_input("Máximo (COP)", value=15000000.0, step=1000000.0)
 
 if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
-    with st.spinner('Escaneando Datos Abiertos...'):
+    with st.spinner('Escaneando Datos Abiertos (SECOP I y II)...'):
         mods_seleccionadas = [sanitizar_sql_like(m) for m in modalidades]
         if modalidad_otra: mods_seleccionadas.append(sanitizar_sql_like(modalidad_otra))
         deps_seleccionados = [sanitizar_sql_like(d) for d in deptos]
@@ -127,13 +128,23 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
 
         for item in datos_totales:
             plat = item.get('_plataforma_origen', 'ND')
-            nombre = str(item.get('nombre_del_procedimiento', item.get('objeto_a_contratar', ''))).lower()
-            desc = str(item.get('descripci_n_del_procedimiento', item.get('detalle_del_objeto_a_contratar', ''))).lower()
-            valor = item.get('precio_base', item.get('cuantia_proceso', '0'))
-            estado = item.get('estado_resumen', item.get('estado_del_proceso', 'ND'))
-            fecha_pub = str(item.get('fecha_de_publicacion_del', item.get('fecha_de_cargue_en_el_secop', 'ND'))).split('T')[0]
-            url_obj = item.get('urlproceso', item.get('ruta_proceso_en_secop_i', 'Sin enlace'))
-            enlace = url_obj.get('url', 'Sin enlace') if isinstance(url_obj, dict) else str(url_obj)
+            
+            # CORRECCIÓN 2: Restauramos la separación estricta y segura de tu código local
+            if plat == 'SECOP II':
+                nombre = str(item.get('nombre_del_procedimiento', '')).lower()
+                desc = str(item.get('descripci_n_del_procedimiento', '')).lower()
+                valor = item.get('precio_base', '0')
+                estado = item.get('estado_resumen', 'ND')
+                fecha_pub = str(item.get('fecha_de_publicacion_del', 'ND')).split('T')[0]
+                url_obj = item.get('urlproceso', {})
+                enlace = url_obj.get('url', 'Sin enlace') if isinstance(url_obj, dict) else str(url_obj)
+            else: 
+                nombre = str(item.get('objeto_a_contratar', '')).lower()
+                desc = str(item.get('detalle_del_objeto_a_contratar', '')).lower()
+                valor = item.get('cuantia_proceso', '0')
+                estado = item.get('estado_del_proceso', 'ND')
+                fecha_pub = str(item.get('fecha_de_cargue_en_el_secop', 'ND')).split('T')[0]
+                enlace = item.get('ruta_proceso_en_secop_i', 'Sin enlace')
 
             texto_busqueda = f"{nombre} {desc}"
             es_valido = True
@@ -160,7 +171,6 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
             st.success(f"✅ Se capturaron {len(procesos_finales)} procesos.")
             st.dataframe(df)
             
-            # Exportar a Excel en memoria para Streamlit
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: df.to_excel(writer, index=False)
             st.download_button(label="📥 Descargar Excel", data=buffer.getvalue(), file_name=f"SECOPTER_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", mime="application/vnd.ms-excel")
@@ -168,4 +178,4 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
             st.warning("No se encontraron procesos activos con estos filtros.")
 
 st.markdown("---")
-st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com. Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
+st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com . Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
