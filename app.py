@@ -1,6 +1,6 @@
 """
 S.E.C.O.P.T.E.R. Web - Sistema Estratégico de Captura de Oportunidades Públicas
-Versión: 10.4 (Persistencia Absoluta en Memoria y Depuración SMTP)
+Versión: 10.5 (Persistencia Absoluta, Depuración SMTP y Módulo de Feedback)
 """
 import streamlit as st
 from datetime import datetime, timedelta
@@ -210,7 +210,7 @@ if st.session_state.df_resultados is not None:
                     msg['To'] = correo_destino
                     msg['Subject'] = f"Reporte S.E.C.O.P.T.E.R. - {datetime.now().strftime('%Y-%m-%d')}"
                     
-                    cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.No olvides ver mi blog juridico https://derechoyleycolombia.blogspot.com/ y mi portafolio en  contratación https://alejandro-ariza-contratacion.netlify.app y mi Twitter/X https://x.com/AlejoExitiuM .\n\nAtentamente,\nAlejandro Ariza - Asesor en Contratación Estatal \nS.E.C.O.P.T.E.R. - Inteligencia Contractual"
+                    cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.\n\nAtentamente,\nS.E.C.O.P.T.E.R. - Inteligencia Contractual"
                     msg.attach(MIMEText(cuerpo, 'plain'))
                     
                     adjunto = MIMEApplication(st.session_state.excel_buffer, _subtype="xlsx")
@@ -227,9 +227,48 @@ if st.session_state.df_resultados is not None:
                 else:
                     st.error("Error crítico: Las credenciales (Secrets) no están configuradas en el servidor.")
             except smtplib.SMTPAuthenticationError:
-                st.error("🚨 Error de Autenticación: Google rechazó la contraseña. Verifica que la clave de 16 letras esté sin espacios en los Secrets y corresponda a derechoyleycolombia@gmail.com.")
+                st.error("🚨 Error de Autenticación: Google rechazó la contraseña. Verifica que la clave esté correcta en los Secrets.")
             except Exception as e:
                 st.error(f"🚨 Falla en el servidor de correo: {e}")
+
+st.markdown("---")
+
+# --- MÓDULO DE SUGERENCIAS Y FEEDBACK ---
+st.markdown("### 💡 Sugerencias y Reporte de Fallos")
+st.write("En caso de encontrar fallos o recomendar ajustes puedes escribir aquí:")
+
+with st.form("feedback_form"):
+    feedback_text = st.text_area("Mensaje:", placeholder="Escribe tus observaciones o ideas para mejorar la plataforma...")
+    submit_feedback = st.form_submit_button("Enviar Mensaje")
+    
+    if submit_feedback:
+        if feedback_text.strip() == "":
+            st.warning("Por favor, escribe un mensaje antes de presionar enviar.")
+        else:
+            try:
+                if "email_user" in st.secrets and "email_pass" in st.secrets:
+                    remitente = st.secrets["email_user"]
+                    password = st.secrets["email_pass"]
+                    destinatario_feedback = "alejandroarizajuridico@gmail.com"
+                    
+                    msg_fb = MIMEMultipart()
+                    msg_fb['From'] = remitente
+                    msg_fb['To'] = destinatario_feedback
+                    msg_fb['Subject'] = "Nueva Sugerencia/Fallo - S.E.C.O.P.T.E.R. Web"
+                    
+                    cuerpo_fb = f"Has recibido un nuevo mensaje de feedback desde la aplicación web:\n\n{feedback_text}"
+                    msg_fb.attach(MIMEText(cuerpo_fb, 'plain'))
+                    
+                    server_fb = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+                    server_fb.login(remitente, password)
+                    server_fb.send_message(msg_fb)
+                    server_fb.quit()
+                    
+                    st.success("✅ ¡Gracias por tu mensaje! Lo revisaremos pronto.")
+                else:
+                    st.error("Error: Las credenciales de correo no están configuradas.")
+            except Exception as e:
+                st.error(f"Error al enviar el mensaje: {e}")
 
 st.markdown("---")
 st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com - https://alejandro-ariza-contratacion.netlify.app . Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
