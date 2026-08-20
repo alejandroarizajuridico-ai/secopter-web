@@ -172,43 +172,44 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
             c_descarga, c_correo = st.columns(2)
             c_descarga.download_button(label="📥 Descargar Excel", data=buffer.getvalue(), file_name=f"SECOPTER_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", mime="application/vnd.ms-excel")
             
-            # --- Módulo de Envío por Correo ---
-            st.markdown("### ✉️ Envío Directo por Correo Electrónico")
-            correo_destino = st.text_input(Ingrese su correo electrónico para recibir el reporte", value="", placeholder="ejemplo@correo.com")
-            
-            if st.button("Enviar Reporte a mi Correo", type="secondary"):
-                if not correo_destino or "@" not in correo_destino:
+            # --- Módulo de Envío por Correo Dinámico ---
+    st.markdown("### ✉️ Envío Directo por Correo Electrónico")
+    # Campo en blanco para que cualquier usuario ingrese su propio correo
+    correo_destino = st.text_input("Ingrese su correo electrónico para recibir el reporte", value="", placeholder="ejemplo@correo.com")
+    
+    if st.button("Enviar Reporte a mi Correo", type="secondary"):
+        if not correo_destino or "@" not in correo_destino:
             st.warning("Por favor, ingrese una dirección de correo electrónico válida.")
         else:
-                try:
-                    if "email_user" in st.secrets and "email_pass" in st.secrets:
-                        remitente = st.secrets["email_user"]
-                        password = st.secrets["email_pass"]
-                        
-                        msg = MIMEMultipart()
-                        msg['From'] = remitente
-                        msg['To'] = correo_destino
-                        msg['Subject'] = f"Reporte SECOPTER - {datetime.now().strftime('%Y-%m-%d')}"
-                        
-                        cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.\n\nJarvis."
-                        msg.attach(MIMEText(cuerpo, 'plain'))
-                        
-                        adjunto = MIMEApplication(buffer.getvalue(), _subtype="xlsx")
-                        adjunto.add_header('Content-Disposition', 'attachment', filename=f"SECOPTER_{datetime.now().strftime('%Y%m%d')}.xlsx")
-                        msg.attach(adjunto)
-                        
-                        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-                        server.login(remitente, password)
-                        server.send_message(msg)
-                        server.quit()
-                        
-                        st.success(f"✅ Excel enviado con éxito a {correo_destino}")
-                    else:
-                        st.error("Error: No se encontraron las credenciales seguras (Secrets) en el servidor de Streamlit.")
-                except Exception as e:
-                    st.error(f"Error de conexión al enviar el correo: {e}")
-        else:
-            if st.button.counter > 0 if hasattr(st.button, 'counter') else False: # Evita aviso prematuro
+            try:
+                if "email_user" in st.secrets and "email_pass" in st.secrets:
+                    remitente = st.secrets["email_user"]
+                    password = st.secrets["email_pass"]
+                    
+                    msg = MIMEMultipart()
+                    msg['From'] = remitente
+                    msg['To'] = correo_destino
+                    msg['Subject'] = f"Reporte S.E.C.O.P.T.E.R. - {datetime.now().strftime('%Y-%m-%d')}"
+                    
+                    cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.\n\nAtentamente,\nS.E.C.O.P.T.E.R. - Inteligencia Contractual"
+                    msg.attach(MIMEText(cuerpo, 'plain'))
+                    
+                    adjunto = MIMEApplication(buffer.getvalue(), _subtype="xlsx")
+                    adjunto.add_header('Content-Disposition', 'attachment', filename=f"SECOPTER_{datetime.now().strftime('%Y%m%d')}.xlsx")
+                    msg.attach(adjunto)
+                    
+                    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+                    server.login(remitente, password)
+                    server.send_message(msg)
+                    server.quit()
+                    
+                    st.success(f"✅ ¡Reporte enviado con éxito a {correo_destino}!")
+                else:
+                    st.error("Error: No se encontraron las credenciales de correo en el servidor.")
+            except Exception as e:
+                st.error(f"Error al enviar el correo: {e}")
+else:
+    if st.button.counter > 0 if hasattr(st.button, 'counter') else False: # Evita aviso prematuro
         pass
     else:
         st.info("ℹ️ Configure sus filtros arriba y presione 'INICIAR EXTRACCIÓN' para ver y enviar los resultados.")
