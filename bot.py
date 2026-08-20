@@ -67,10 +67,14 @@ def ejecutar_radar_automatico():
             estado = item.get('estado_del_proceso', 'ND')
             enlace = item.get('ruta_proceso_en_secop_i', 'Sin enlace')
 
+        # Agregamos el campo Modalidad aquí
+        modalidad = item.get('modalidad_de_contratacion', 'ND')
+
         procesos_finales.append({
             'Plataforma': plat,
             'Entidad': item.get('entidad', item.get('nombre_entidad', 'ND')),
             'Objeto': f"{nombre} - {desc}"[:500].capitalize(),
+            'Modalidad': modalidad,
             'Valor (COP)': valor,
             'Estado': estado,
             'Enlace': enlace
@@ -85,7 +89,7 @@ def ejecutar_radar_automatico():
     
     remitente = os.environ.get("EMAIL_USER")
     password = os.environ.get("EMAIL_PASS")
-    # Puedes cambiar este correo al que desees recibir la alerta
+    # Este es tu correo destino
     destinatario = "alejandroarizajuridico@gmail.com" 
 
     if not remitente or not password:
