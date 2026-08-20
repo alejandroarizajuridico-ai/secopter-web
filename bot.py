@@ -11,7 +11,7 @@ import concurrent.futures
 
 def ejecutar_radar_automatico():
     # 1. Configuración de la Búsqueda (Fija para el Bot)
-    dias = 2
+    dias = 1
     fecha_limite = (datetime.now() - timedelta(days=dias)).strftime('%Y-%m-%d')
     departamento = "%SANTANDER%"
     
