@@ -1,6 +1,6 @@
 """
 S.E.C.O.P.T.E.R. Web - Sistema Estratégico de Captura de Oportunidades Públicas
-Versión: 10.6 (Enlaces Clicables, Limpieza de URLs y Footer Institucional)
+Versión: 10.7 (Filtro Inteligente, URLs Limpias y Monitor de Estado API)
 """
 import streamlit as st
 from datetime import datetime, timedelta
@@ -12,7 +12,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
-import ast
+import json
 
 st.set_page_config(page_title="S.E.C.O.P.T.E.R.", layout="wide")
 
@@ -41,6 +41,7 @@ def sanitizar_sql_like(texto):
     for v in ['Á', 'É', 'Í', 'Ó', 'Ú']: t = t.replace(v, '%')
     return f"%{t}%"
 
+# Monitor de Errores Integrado
 def fetch_api(session, url, query, headers, plataforma):
     payload = {"query": query, "page": {"pageNumber": 1, "pageSize": 5000}, "includeSynthetic": False}
     try:
@@ -48,21 +49,30 @@ def fetch_api(session, url, query, headers, plataforma):
         if resp.status_code == 200:
             data = resp.json()
             for i in data: i['_plataforma_origen'] = plataforma
-            return data
-    except: pass
-    return []
+            return data, None
+        else:
+            return [], f"Error {resp.status_code} ({plataforma})"
+    except Exception as e:
+        return [], f"Falla de conexión/Timeout ({plataforma})"
 
-# Función limpiadora de enlaces
+# Extractor Blindado de URLs
 def extraer_enlace_limpio(url_data):
+    if not url_data:
+        return None
     if isinstance(url_data, dict):
-        return url_data.get('url', 'Sin enlace')
-    elif isinstance(url_data, str):
-        if "{'url':" in url_data or '{"url":' in url_data:
-            try:
-                parsed = ast.literal_eval(url_data)
-                return parsed.get('url', 'Sin enlace')
-            except: pass
-    return str(url_data) if url_data else 'Sin enlace'
+        url = url_data.get('url', '')
+        return url if url.startswith('http') else None
+    if isinstance(url_data, str):
+        try:
+            limpio = url_data.replace("'", '"')
+            parsed = json.loads(limpio)
+            if isinstance(parsed, dict):
+                url = parsed.get('url', '')
+                return url if url.startswith('http') else None
+        except: pass
+        if url_data.startswith("http"):
+            return url_data
+    return None
 
 st.title("S.E.C.O.P.T.E.R. 🚁")
 st.markdown("*Sistema Estratégico de Captura de Oportunidades Públicas y Tendencias Estatales Regionales*")
@@ -104,10 +114,12 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
         
         headers = {"Content-Type": "application/json", "X-App-Token": "bybeB97SohWfAjAaAXPjkPASr"}
         datos_totales = []
+        errores_api = []
         
         with requests.Session() as req_session:
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 tareas = {}
+                # Filtro Estricto de SECOP II
                 if plataforma in ["SECOP II", "Ambos (SECOP I y II)"]:
                     where_s2 = [f"fecha_de_publicacion_del >= '{fecha_limite}T00:00:00.000'"]
                     if tipo_contrato == "Otro" and tipo_otro: where_s2.append(f"upper(tipo_de_contrato) LIKE '{sanitizar_sql_like(tipo_otro)}'")
@@ -120,8 +132,9 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
                     if usar_presupuesto: where_s2.append(f"precio_base >= {p_min:.0f} AND precio_base <= {p_max:.0f}")
                     
                     q_s2 = f"SELECT * WHERE {' AND '.join(where_s2)} ORDER BY fecha_de_publicacion_del DESC"
-                    tareas[executor.submit(fetch_api, req_session, "https://www.datos.gov.co/api/v3/views/p6dx-8zbt/query.json", q_s2, headers, "SECOP II")] = "S2"
+                    tareas[executor.submit(fetch_api, req_session, "https://www.datos.gov.co/api/v3/views/p6dx-8zbt/query.json", q_s2, headers, "SECOP II")] = "SECOP II"
 
+                # Filtro Estricto de SECOP I
                 if plataforma in ["SECOP I", "Ambos (SECOP I y II)"]:
                     where_s1 = [f"fecha_de_cargue_en_el_secop >= '{fecha_limite}T00:00:00.000'"]
                     if tipo_contrato == "Otro" and tipo_otro: where_s1.append(f"upper(tipo_de_contrato) LIKE '{sanitizar_sql_like(tipo_otro)}'")
@@ -134,9 +147,16 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
                     if usar_presupuesto: where_s1.append(f"cuantia_proceso >= {p_min:.0f} AND cuantia_proceso <= {p_max:.0f}")
                     
                     q_s1 = f"SELECT * WHERE {' AND '.join(where_s1)} ORDER BY fecha_de_cargue_en_el_secop DESC"
-                    tareas[executor.submit(fetch_api, req_session, "https://www.datos.gov.co/api/v3/views/f789-7hwg/query.json", q_s1, headers, "SECOP I")] = "S1"
+                    tareas[executor.submit(fetch_api, req_session, "https://www.datos.gov.co/api/v3/views/f789-7hwg/query.json", q_s1, headers, "SECOP I")] = "SECOP I"
 
-                for future in concurrent.futures.as_completed(tareas): datos_totales.extend(future.result())
+                for future in concurrent.futures.as_completed(tareas): 
+                    data, err = future.result()
+                    if err: errores_api.append(err)
+                    if data: datos_totales.extend(data)
+        
+        # Mostrar alerta si una API falla
+        if errores_api:
+            st.warning("⚠️ Alerta de Datos Abiertos: " + " | ".join(errores_api) + ". La base oficial podría estar temporalmente caída u omitiendo datos.")
 
         procesos_finales = []
         palabras_exclusion = [p.strip().lower() for p in palabras_excluir.split(',')] if palabras_excluir and "ej:" not in palabras_excluir.lower() else []
@@ -149,14 +169,14 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
                 valor = item.get('precio_base', '0')
                 estado = item.get('estado_resumen', 'ND')
                 fecha_pub = str(item.get('fecha_de_publicacion_del', 'ND')).split('T')[0]
-                url_obj = item.get('urlproceso', 'Sin enlace')
+                url_obj = item.get('urlproceso')
             else: 
                 nombre = str(item.get('objeto_a_contratar', '')).lower()
                 desc = str(item.get('detalle_del_objeto_a_contratar', '')).lower()
                 valor = item.get('cuantia_proceso', '0')
                 estado = item.get('estado_del_proceso', 'ND')
                 fecha_pub = str(item.get('fecha_de_cargue_en_el_secop', 'ND')).split('T')[0]
-                url_obj = item.get('ruta_proceso_en_secop_i', 'Sin enlace')
+                url_obj = item.get('ruta_proceso_en_secop_i')
 
             texto_busqueda = f"{nombre} {desc}"
             es_valido = True
@@ -195,12 +215,12 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
         else:
             st.session_state.df_resultados = None
             st.session_state.excel_buffer = None
-            st.warning("No se encontraron procesos activos con estos filtros.")
+            st.info("No se encontraron procesos activos. Revisa la rigidez de tus filtros o el estado de Datos Abiertos.")
 
 if st.session_state.df_resultados is not None:
     st.success(f"✅ Se capturaron {len(st.session_state.df_resultados)} procesos.")
     
-    # Configuración para que el enlace sea un hipervínculo clicable
+    # Renderizado Dinámico de Enlaces
     st.dataframe(
         st.session_state.df_resultados,
         column_config={
@@ -290,5 +310,4 @@ with st.form("feedback_form"):
                 st.error(f"Error al enviar el mensaje: {e}")
 
 st.markdown("---")
-# Actualización del Footer institucional con enlaces
 st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com - [https://alejandro-ariza-contratacion.netlify.app](https://alejandro-ariza-contratacion.netlify.app)  \nLos datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
