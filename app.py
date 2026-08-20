@@ -1,7 +1,6 @@
 """
 S.E.C.O.P.T.E.R. Web - Sistema Estratégico de Captura de Oportunidades Públicas
-Versión: 10.1 (Fidelidad Estructural y Corrección Motor SECOP I)
-Desarrollado para: Alejandro Ariza - Asesor en Contratación
+Versión: 10.2 (Módulo de Transmisión de Correo Electrónico)
 """
 import streamlit as st
 from datetime import datetime, timedelta
@@ -9,11 +8,13 @@ import requests
 import pandas as pd
 import concurrent.futures
 import io
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
 
-# Configuración de página
 st.set_page_config(page_title="S.E.C.O.P.T.E.R.", layout="wide")
 
-# Mapeos originales del código Tkinter
 TIPO_CONTRATO_API_LIKE = {
     "Obras general": ["%OBRA%"], "Obra Vías": ["%OBRA%"], "Obra APSB": ["%OBRA%"],
     "Prestación de servicios": ["%PRESTACI%N DE SERVICIO%", "%PRESTACI%N%"],
@@ -50,7 +51,6 @@ def fetch_api(session, url, query, headers, plataforma):
     except: pass
     return []
 
-# Interfaz Web
 st.title("S.E.C.O.P.T.E.R. 🚁")
 st.markdown("*Sistema Estratégico de Captura de Oportunidades Públicas y Tendencias Estatales Regionales*")
 
@@ -59,7 +59,6 @@ with col1:
     plataforma = st.selectbox("Plataforma de Búsqueda", ["Ambos (SECOP I y II)", "SECOP II", "SECOP I"])
     tipo_contrato = st.selectbox("Tipo de Contrato", list(TIPO_CONTRATO_API_LIKE.keys()))
     tipo_otro = st.text_input("Escriba el tipo (Si eligió 'Otro')") if tipo_contrato == "Otro" else ""
-    # CORRECCIÓN 1: Se remueve el default de Mínima Cuantía para que busque todas las modalidades de base
     modalidades = st.multiselect("Modalidad(es)", MODALIDADES, default=[])
     modalidad_otra = st.text_input("Otra modalidad (Opcional)")
 
@@ -91,7 +90,6 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
         with requests.Session() as req_session:
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 tareas = {}
-                # Lógica SECOP II
                 if plataforma in ["SECOP II", "Ambos (SECOP I y II)"]:
                     where_s2 = [f"fecha_de_publicacion_del >= '{fecha_limite}T00:00:00.000'"]
                     if tipo_contrato == "Otro" and tipo_otro: where_s2.append(f"upper(tipo_de_contrato) LIKE '{sanitizar_sql_like(tipo_otro)}'")
@@ -106,7 +104,6 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
                     q_s2 = f"SELECT * WHERE {' AND '.join(where_s2)} ORDER BY fecha_de_publicacion_del DESC"
                     tareas[executor.submit(fetch_api, req_session, "https://www.datos.gov.co/api/v3/views/p6dx-8zbt/query.json", q_s2, headers, "SECOP II")] = "S2"
 
-                # Lógica SECOP I
                 if plataforma in ["SECOP I", "Ambos (SECOP I y II)"]:
                     where_s1 = [f"fecha_de_cargue_en_el_secop >= '{fecha_limite}T00:00:00.000'"]
                     if tipo_contrato == "Otro" and tipo_otro: where_s1.append(f"upper(tipo_de_contrato) LIKE '{sanitizar_sql_like(tipo_otro)}'")
@@ -128,8 +125,6 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
 
         for item in datos_totales:
             plat = item.get('_plataforma_origen', 'ND')
-            
-            # CORRECCIÓN 2: Restauramos la separación estricta y segura de tu código local
             if plat == 'SECOP II':
                 nombre = str(item.get('nombre_del_procedimiento', '')).lower()
                 desc = str(item.get('descripci_n_del_procedimiento', '')).lower()
@@ -173,7 +168,42 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
             
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: df.to_excel(writer, index=False)
-            st.download_button(label="📥 Descargar Excel", data=buffer.getvalue(), file_name=f"SECOPTER_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", mime="application/vnd.ms-excel")
+            
+            c_descarga, c_correo = st.columns(2)
+            c_descarga.download_button(label="📥 Descargar Excel", data=buffer.getvalue(), file_name=f"SECOPTER_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", mime="application/vnd.ms-excel")
+            
+            # --- Módulo de Envío por Correo ---
+            st.markdown("### ✉️ Envío Directo por Correo Electrónico")
+            correo_destino = st.text_input("Destinatario", value="alejandroarizajuridico@gmail.com")
+            
+            if st.button("Enviar Reporte", type="secondary"):
+                try:
+                    if "email_user" in st.secrets and "email_pass" in st.secrets:
+                        remitente = st.secrets["email_user"]
+                        password = st.secrets["email_pass"]
+                        
+                        msg = MIMEMultipart()
+                        msg['From'] = remitente
+                        msg['To'] = correo_destino
+                        msg['Subject'] = f"Reporte SECOPTER - {datetime.now().strftime('%Y-%m-%d')}"
+                        
+                        cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.\n\nJarvis."
+                        msg.attach(MIMEText(cuerpo, 'plain'))
+                        
+                        adjunto = MIMEApplication(buffer.getvalue(), _subtype="xlsx")
+                        adjunto.add_header('Content-Disposition', 'attachment', filename=f"SECOPTER_{datetime.now().strftime('%Y%m%d')}.xlsx")
+                        msg.attach(adjunto)
+                        
+                        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+                        server.login(remitente, password)
+                        server.send_message(msg)
+                        server.quit()
+                        
+                        st.success(f"✅ Excel enviado con éxito a {correo_destino}")
+                    else:
+                        st.error("Error: No se encontraron las credenciales seguras (Secrets) en el servidor de Streamlit.")
+                except Exception as e:
+                    st.error(f"Error de conexión al enviar el correo: {e}")
         else:
             st.warning("No se encontraron procesos activos con estos filtros.")
 
