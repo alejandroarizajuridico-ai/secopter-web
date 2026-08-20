@@ -232,4 +232,4 @@ if st.session_state.df_resultados is not None:
                 st.error(f"🚨 Falla en el servidor de correo: {e}")
 
 st.markdown("---")
-st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com . Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
+st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com - https://alejandro-ariza-contratacion.netlify.app . Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
