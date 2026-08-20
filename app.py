@@ -1,6 +1,6 @@
 """
 S.E.C.O.P.T.E.R. Web - Sistema Estratégico de Captura de Oportunidades Públicas
-Versión: 10.5 (Persistencia Absoluta, Depuración SMTP y Módulo de Feedback)
+Versión: 10.6 (Enlaces Clicables, Limpieza de URLs y Footer Institucional)
 """
 import streamlit as st
 from datetime import datetime, timedelta
@@ -12,6 +12,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
+import ast
 
 st.set_page_config(page_title="S.E.C.O.P.T.E.R.", layout="wide")
 
@@ -51,6 +52,18 @@ def fetch_api(session, url, query, headers, plataforma):
     except: pass
     return []
 
+# Función limpiadora de enlaces
+def extraer_enlace_limpio(url_data):
+    if isinstance(url_data, dict):
+        return url_data.get('url', 'Sin enlace')
+    elif isinstance(url_data, str):
+        if "{'url':" in url_data or '{"url":' in url_data:
+            try:
+                parsed = ast.literal_eval(url_data)
+                return parsed.get('url', 'Sin enlace')
+            except: pass
+    return str(url_data) if url_data else 'Sin enlace'
+
 st.title("S.E.C.O.P.T.E.R. 🚁")
 st.markdown("*Sistema Estratégico de Captura de Oportunidades Públicas y Tendencias Estatales Regionales*")
 
@@ -77,7 +90,6 @@ if usar_presupuesto:
     p_min = c_min.number_input("Mínimo (COP)", value=0.0, step=1000000.0)
     p_max = c_max.number_input("Máximo (COP)", value=15000000.0, step=1000000.0)
 
-# Inicializar memoria profunda de sesión
 if "df_resultados" not in st.session_state:
     st.session_state.df_resultados = None
 if "excel_buffer" not in st.session_state:
@@ -137,15 +149,14 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
                 valor = item.get('precio_base', '0')
                 estado = item.get('estado_resumen', 'ND')
                 fecha_pub = str(item.get('fecha_de_publicacion_del', 'ND')).split('T')[0]
-                url_obj = item.get('urlproceso', {})
-                enlace = url_obj.get('url', 'Sin enlace') if isinstance(url_obj, dict) else str(url_obj)
+                url_obj = item.get('urlproceso', 'Sin enlace')
             else: 
                 nombre = str(item.get('objeto_a_contratar', '')).lower()
                 desc = str(item.get('detalle_del_objeto_a_contratar', '')).lower()
                 valor = item.get('cuantia_proceso', '0')
                 estado = item.get('estado_del_proceso', 'ND')
                 fecha_pub = str(item.get('fecha_de_cargue_en_el_secop', 'ND')).split('T')[0]
-                enlace = item.get('ruta_proceso_en_secop_i', 'Sin enlace')
+                url_obj = item.get('ruta_proceso_en_secop_i', 'Sin enlace')
 
             texto_busqueda = f"{nombre} {desc}"
             es_valido = True
@@ -160,10 +171,16 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
 
             if es_valido:
                 procesos_finales.append({
-                    'Plataforma': plat, 'Entidad': item.get('entidad', item.get('nombre_entidad', 'ND')),
-                    'Objeto': f"{nombre} - {desc}"[:500].capitalize(), 'Tipo Contrato': item.get('tipo_de_contrato', 'ND'),
-                    'Valor (COP)': valor, 'Modalidad': item.get('modalidad_de_contratacion', 'ND'),
-                    'Estado': estado, 'Enlace': enlace, 'Departamento': item.get('departamento_entidad', 'ND'), 'Fecha Publicación': fecha_pub
+                    'Plataforma': plat, 
+                    'Entidad': item.get('entidad', item.get('nombre_entidad', 'ND')),
+                    'Objeto': f"{nombre} - {desc}"[:500].capitalize(), 
+                    'Tipo Contrato': item.get('tipo_de_contrato', 'ND'),
+                    'Valor (COP)': valor, 
+                    'Modalidad': item.get('modalidad_de_contratacion', 'ND'),
+                    'Estado': estado, 
+                    'Enlace': extraer_enlace_limpio(url_obj), 
+                    'Departamento': item.get('departamento_entidad', 'ND'), 
+                    'Fecha Publicación': fecha_pub
                 })
 
         if procesos_finales:
@@ -180,10 +197,16 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
             st.session_state.excel_buffer = None
             st.warning("No se encontraron procesos activos con estos filtros.")
 
-# Si hay resultados guardados en memoria, desplegar la tabla interactiva y los botones
 if st.session_state.df_resultados is not None:
     st.success(f"✅ Se capturaron {len(st.session_state.df_resultados)} procesos.")
-    st.dataframe(st.session_state.df_resultados)
+    
+    # Configuración para que el enlace sea un hipervínculo clicable
+    st.dataframe(
+        st.session_state.df_resultados,
+        column_config={
+            "Enlace": st.column_config.LinkColumn("Enlace (Clic para abrir)")
+        }
+    )
     
     c_descarga, c_correo = st.columns(2)
     c_descarga.download_button(
@@ -217,23 +240,19 @@ if st.session_state.df_resultados is not None:
                     adjunto.add_header('Content-Disposition', 'attachment', filename=f"SECOPTER_{datetime.now().strftime('%Y%m%d')}.xlsx")
                     msg.attach(adjunto)
                     
-                    # Conexión SMTP y transmisión
                     server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
                     server.login(remitente, password)
                     server.send_message(msg)
                     server.quit()
                     
-                    st.success(f"✅ ¡Excel enviado correctamente a {correo_destino}! Revisa tu bandeja de entrada o la carpeta de correo no deseado.")
+                    st.success(f"✅ ¡Excel enviado correctamente a {correo_destino}!")
                 else:
-                    st.error("Error crítico: Las credenciales (Secrets) no están configuradas en el servidor.")
-            except smtplib.SMTPAuthenticationError:
-                st.error("🚨 Error de Autenticación: Google rechazó la contraseña. Verifica que la clave esté correcta en los Secrets.")
+                    st.error("Error crítico: Las credenciales (Secrets) no están configuradas.")
             except Exception as e:
                 st.error(f"🚨 Falla en el servidor de correo: {e}")
 
 st.markdown("---")
 
-# --- MÓDULO DE SUGERENCIAS Y FEEDBACK ---
 st.markdown("### 💡 Sugerencias y Reporte de Fallos")
 st.write("En caso de encontrar fallos o recomendar ajustes puedes escribir aquí:")
 
@@ -271,4 +290,5 @@ with st.form("feedback_form"):
                 st.error(f"Error al enviar el mensaje: {e}")
 
 st.markdown("---")
-st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com - https://alejandro-ariza-contratacion.netlify.app . Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
+# Actualización del Footer institucional con enlaces
+st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com - [https://alejandro-ariza-contratacion.netlify.app](https://alejandro-ariza-contratacion.netlify.app)  \nLos datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
