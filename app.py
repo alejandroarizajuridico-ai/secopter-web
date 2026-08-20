@@ -174,9 +174,12 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
             
             # --- Módulo de Envío por Correo ---
             st.markdown("### ✉️ Envío Directo por Correo Electrónico")
-            correo_destino = st.text_input("Destinatario", value="alejandroarizajuridico@gmail.com")
+            correo_destino = st.text_input(Ingrese su correo electrónico para recibir el reporte", value="", placeholder="ejemplo@correo.com")
             
-            if st.button("Enviar Reporte", type="secondary"):
+            if st.button("Enviar Reporte a mi Correo", type="secondary"):
+                if not correo_destino or "@" not in correo_destino:
+            st.warning("Por favor, ingrese una dirección de correo electrónico válida.")
+        else:
                 try:
                     if "email_user" in st.secrets and "email_pass" in st.secrets:
                         remitente = st.secrets["email_user"]
@@ -205,7 +208,10 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
                 except Exception as e:
                     st.error(f"Error de conexión al enviar el correo: {e}")
         else:
-            st.warning("No se encontraron procesos activos con estos filtros.")
+            if st.button.counter > 0 if hasattr(st.button, 'counter') else False: # Evita aviso prematuro
+        pass
+    else:
+        st.info("ℹ️ Configure sus filtros arriba y presione 'INICIAR EXTRACCIÓN' para ver y enviar los resultados.")
 
 st.markdown("---")
 st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com . Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
