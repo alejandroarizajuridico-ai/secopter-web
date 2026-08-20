@@ -1,6 +1,6 @@
 """
 S.E.C.O.P.T.E.R. Web - Sistema Estratégico de Captura de Oportunidades Públicas
-Versión: 10.2 (Módulo de Transmisión de Correo Electrónico)
+Versión: 10.4 (Persistencia Absoluta en Memoria y Depuración SMTP)
 """
 import streamlit as st
 from datetime import datetime, timedelta
@@ -76,6 +76,12 @@ if usar_presupuesto:
     c_min, c_max = st.columns(2)
     p_min = c_min.number_input("Mínimo (COP)", value=0.0, step=1000000.0)
     p_max = c_max.number_input("Máximo (COP)", value=15000000.0, step=1000000.0)
+
+# Inicializar memoria profunda de sesión
+if "df_resultados" not in st.session_state:
+    st.session_state.df_resultados = None
+if "excel_buffer" not in st.session_state:
+    st.session_state.excel_buffer = None
 
 if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
     with st.spinner('Escaneando Datos Abiertos (SECOP I y II)...'):
@@ -163,23 +169,36 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
         if procesos_finales:
             df = pd.DataFrame(procesos_finales)
             df['Valor (COP)'] = pd.to_numeric(df['Valor (COP)'], errors='coerce')
-            st.success(f"✅ Se capturaron {len(procesos_finales)} procesos.")
-            st.dataframe(df)
+            st.session_state.df_resultados = df
             
             buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: df.to_excel(writer, index=False)
-            
-            c_descarga, c_correo = st.columns(2)
-            c_descarga.download_button(label="📥 Descargar Excel", data=buffer.getvalue(), file_name=f"SECOPTER_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", mime="application/vnd.ms-excel")
-            
-            # --- Módulo de Envío por Correo Dinámico ---
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: 
+                df.to_excel(writer, index=False)
+            st.session_state.excel_buffer = buffer.getvalue()
+        else:
+            st.session_state.df_resultados = None
+            st.session_state.excel_buffer = None
+            st.warning("No se encontraron procesos activos con estos filtros.")
+
+# Si hay resultados guardados en memoria, desplegar la tabla interactiva y los botones
+if st.session_state.df_resultados is not None:
+    st.success(f"✅ Se capturaron {len(st.session_state.df_resultados)} procesos.")
+    st.dataframe(st.session_state.df_resultados)
+    
+    c_descarga, c_correo = st.columns(2)
+    c_descarga.download_button(
+        label="📥 Descargar Excel", 
+        data=st.session_state.excel_buffer, 
+        file_name=f"SECOPTER_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", 
+        mime="application/vnd.ms-excel"
+    )
+    
     st.markdown("### ✉️ Envío Directo por Correo Electrónico")
-    # Campo en blanco para que cualquier usuario ingrese su propio correo
-    correo_destino = st.text_input("Ingrese su correo electrónico para recibir el reporte", value="", placeholder="ejemplo@correo.com")
+    correo_destino = st.text_input("Ingrese su correo electrónico", value="", placeholder="ejemplo@gmail.com")
     
     if st.button("Enviar Reporte a mi Correo", type="secondary"):
         if not correo_destino or "@" not in correo_destino:
-            st.warning("Por favor, ingrese una dirección de correo electrónico válida.")
+            st.warning("Por favor, ingrese un correo válido.")
         else:
             try:
                 if "email_user" in st.secrets and "email_pass" in st.secrets:
@@ -194,25 +213,23 @@ if st.button("▶ INICIAR EXTRACCIÓN", type="primary"):
                     cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.\n\nAtentamente,\nS.E.C.O.P.T.E.R. - Inteligencia Contractual"
                     msg.attach(MIMEText(cuerpo, 'plain'))
                     
-                    adjunto = MIMEApplication(buffer.getvalue(), _subtype="xlsx")
+                    adjunto = MIMEApplication(st.session_state.excel_buffer, _subtype="xlsx")
                     adjunto.add_header('Content-Disposition', 'attachment', filename=f"SECOPTER_{datetime.now().strftime('%Y%m%d')}.xlsx")
                     msg.attach(adjunto)
                     
+                    # Conexión SMTP y transmisión
                     server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
                     server.login(remitente, password)
                     server.send_message(msg)
                     server.quit()
                     
-                    st.success(f"✅ ¡Reporte enviado con éxito a {correo_destino}!")
+                    st.success(f"✅ ¡Excel enviado correctamente a {correo_destino}! Revisa tu bandeja de entrada o la carpeta de correo no deseado.")
                 else:
-                    st.error("Error: No se encontraron las credenciales de correo en el servidor.")
+                    st.error("Error crítico: Las credenciales (Secrets) no están configuradas en el servidor.")
+            except smtplib.SMTPAuthenticationError:
+                st.error("🚨 Error de Autenticación: Google rechazó la contraseña. Verifica que la clave de 16 letras esté sin espacios en los Secrets y corresponda a derechoyleycolombia@gmail.com.")
             except Exception as e:
-                st.error(f"Error al enviar el correo: {e}")
-else:
-    if st.button.counter > 0 if hasattr(st.button, 'counter') else False: # Evita aviso prematuro
-        pass
-    else:
-        st.info("ℹ️ Configure sus filtros arriba y presione 'INICIAR EXTRACCIÓN' para ver y enviar los resultados.")
+                st.error(f"🚨 Falla en el servidor de correo: {e}")
 
 st.markdown("---")
 st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com . Los datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
