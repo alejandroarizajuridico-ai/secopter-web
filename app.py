@@ -253,7 +253,7 @@ if st.session_state.df_resultados is not None:
                     msg['To'] = correo_destino
                     msg['Subject'] = f"Reporte S.E.C.O.P.T.E.R. - {datetime.now().strftime('%Y-%m-%d')}"
                     
-                    cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.\n\nAtentamente,\nS.E.C.O.P.T.E.R. - Inteligencia Contractual"
+                    cuerpo = "Hola,\n\nAdjunto encontrarás el reporte consolidado generado por S.E.C.O.P.T.E.R. con las oportunidades contractuales detectadas.\n\nAtentamente,\n Alejandro Ariza - Asesor en Contratación Estatal.\nS.E.C.O.P.T.E.R. - Inteligencia Contractual"
                     msg.attach(MIMEText(cuerpo, 'plain'))
                     
                     adjunto = MIMEApplication(st.session_state.excel_buffer, _subtype="xlsx")
