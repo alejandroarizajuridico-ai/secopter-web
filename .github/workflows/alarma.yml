@@ -1,0 +1,30 @@
+name: S.E.C.O.P.T.E.R. Bot Diario
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 13:00 UTC (8:00 AM hora Colombia)
+    - cron: '0 13 * * *'
+  workflow_dispatch: 
+    # Esto te permite presionar un botón para probarlo manualmente cuando quieras
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+
+      - name: Ejecutar el radar
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: python bot.py
