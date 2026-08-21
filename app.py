@@ -312,4 +312,29 @@ with st.form("feedback_form"):
                 st.error(f"Error al enviar el mensaje: {e}")
 
 st.markdown("---")
+
+# --- SECCIÓN DE APOYO Y DONACIONES ---
+st.markdown("### ☕ Apoya el Proyecto S.E.C.O.P.T.E.R.")
+
+col_don1, col_don2 = st.columns([2, 1])
+with col_don1:
+    st.write(
+        "Si esta herramienta ha optimizado tus procesos de contratación y deseas "
+        "apoyar su evolución continua para recibir acceso gratuito temporal a las "
+        "próximas herramientas y módulos VIP, puedes realizar una contribución "
+        "escaneando el código QR."
+    )
+    st.caption("💡 *Envía tu comprobante de transferencia al correo del autor para habilitar tus accesos especiales.*")
+
+with col_don2:
+    import os
+    archivo_qr = "BREB.jpeg"
+    if os.path.exists(archivo_qr):
+        st.image(archivo_qr, caption="Código QR (Bancolombia / Breb)", width=180)
+    else:
+        st.warning("⚠️ El código QR no se encuentra disponible temporalmente.")
+
+st.markdown("---")
+
+# Pie de página final (Créditos)
 st.caption("Alejandro Ariza - Asesor en Contratación Estatal - alejandroarizajuridico@gmail.com - [https://alejandro-ariza-contratacion.netlify.app](https://alejandro-ariza-contratacion.netlify.app)  \nLos datos generados están sujetos a la disponibilidad de Datos Abiertos (Colombia Compra Eficiente).")
