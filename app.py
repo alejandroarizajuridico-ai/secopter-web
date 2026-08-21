@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 import json
 
 st.set_page_config(page_title="S.E.C.O.P.T.E.R.", layout="wide")
+st.caption("Esta herramienta permite la búsqueda de nuevas oportunidades reflejadas en nuevos procesos publicados en intervalos variables y de elección del usuario.")
 
 TIPO_CONTRATO_API_LIKE = {
     "Obras general": ["%OBRA%"], "Obra Vías": ["%OBRA%"], "Obra APSB": ["%OBRA%"],
