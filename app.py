@@ -15,7 +15,6 @@ from email.mime.text import MIMEText
 import json
 
 st.set_page_config(page_title="S.E.C.O.P.T.E.R.", layout="wide")
-st.caption("Esta herramienta permite la búsqueda de nuevas oportunidades reflejadas en nuevos procesos publicados en intervalos variables y de elección del usuario.")
 
 TIPO_CONTRATO_API_LIKE = {
     "Obras general": ["%OBRA%"], "Obra Vías": ["%OBRA%"], "Obra APSB": ["%OBRA%"],
@@ -77,6 +76,8 @@ def extraer_enlace_limpio(url_data):
 
 st.title("S.E.C.O.P.T.E.R. 🚁")
 st.markdown("*Sistema Estratégico de Captura de Oportunidades Públicas y Tendencias Estatales Regionales*")
+st.caption("Esta herramienta permite la búsqueda de nuevas oportunidades reflejadas en nuevos procesos publicados en intervalos variables y de elección del usuario.")
+
 
 col1, col2 = st.columns(2)
 with col1:
